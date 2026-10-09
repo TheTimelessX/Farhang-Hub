@@ -15,13 +15,3 @@ export function createTTL(reason: "user" | "project" | "package" = "package"): n
     }
 }
 
-export function convertTime(context: number, from: "seconds" | "minutes" | "hours"): number {
-    switch (from){
-        case "seconds":
-            return context * 1000;
-        case "minutes":
-            return context * 60 * 1000;
-        case "hours":
-            return context * 3600 * 1000;
-    }
-}

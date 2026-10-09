@@ -56,6 +56,21 @@ class PackageHandler {
         });
     }
 
+    async increaseRequest(package_id: string): Promise<void> {
+        await this.ensureReady();
+        return new Promise(async (resolve) => {
+            const xpackage = await this.getPackageById(package_id);
+            if (!xpackage) return resolve();
+            
+            xpackage.requested++;
+
+            await MongoManager.show(this.db, this.coll).updateOne({ package_id }, { $set: { requested: xpackage.requested } });
+            await RedisManager.set(`package:${package_id}`, createTTL(), xpackage);
+
+            return resolve();
+        });
+    }
+
     async addPackage(packaged: Omit<Package, "package_id" | "status" | "requested">): Promise<Package> {
         await this.ensureReady();
         return new Promise(async (resolve) => {
@@ -99,16 +114,6 @@ class PackageHandler {
         for (const pending_package of pending_packages) {
             if ((pending_package.banner_will_at) <= Date.now()){
                 setTimeout(async () => {
-                    pending_package.banner_caption += "\n\n⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅";
-                    pending_package.banner_entities.push(
-                        {
-                            offset: pending_package.banner_caption.length - 18,
-                            length: 18,
-                            url: `https://t.me/${configuration.bot_username}?see=${pending_package.package_id}`,
-                            type: "text_link"
-                        }
-                    );
-
                     let message_post_link: number;
 
                     if (pending_package.banner_type === "text"){
@@ -116,7 +121,17 @@ class PackageHandler {
                             configuration.posting_channel_id,
                             pending_package.banner_caption,
                             {
-                                entities: pending_package.banner_entities
+                                entities: pending_package.banner_entities,
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [
+                                            {
+                                                text: "⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅",
+                                                url: `https://t.me/${configuration.bot_username}?start=pck_${pending_package.package_id}`
+                                            }
+                                        ]
+                                    ]
+                                }
                             }
                         );
 
@@ -127,7 +142,17 @@ class PackageHandler {
                             pending_package.banner_file_id!,
                             {
                                 caption_entities: pending_package.banner_entities,
-                                caption: pending_package.banner_caption
+                                caption: pending_package.banner_caption,
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [
+                                            {
+                                                text: "⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅",
+                                                url: `https://t.me/${configuration.bot_username}?see=${pending_package.package_id}`
+                                            }
+                                        ]
+                                    ]
+                                }
                             }
                         );
 

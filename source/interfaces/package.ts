@@ -13,4 +13,5 @@ export interface Package {
     banner_file_id?: string;
     banner_type: "text" | "photo";
     banner_will_at: number;
+    banner_delete_at: number;
 }
