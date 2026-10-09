@@ -1,0 +1,30 @@
+{
+  "name": "farhang-hub",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheTimelessX/Farhang-Hub.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/TheTimelessX/Farhang-Hub/issues"
+  },
+  "homepage": "https://github.com/TheTimelessX/Farhang-Hub#readme",
+  "devDependencies": {
+    "@types/node": "^26.6.4"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "grammy": "^1.46.0",
+    "ioredis": "^6.0.0",
+    "mongodb": "^7.7.0"
+  }
+}
