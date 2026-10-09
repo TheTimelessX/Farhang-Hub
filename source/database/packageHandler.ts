@@ -1,7 +1,7 @@
 import { MongoManager, RedisManager, createTTL } from "../managers";
 import { Configuration } from "../configurations";
 import { Package } from "../interfaces";
-import { Api, RawApi } from "grammy";
+import { Api, RawApi, InputMediaBuilder } from "grammy";
 import { randomUUID } from "crypto";
 
 class PackageHandler {
@@ -127,7 +127,8 @@ class PackageHandler {
                                         [
                                             {
                                                 text: "⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅",
-                                                url: `https://t.me/${configuration.bot_username}?start=pck_${pending_package.package_id}`
+                                                url: `https://t.me/${configuration.bot_username}?start=pck_${pending_package.package_id}`,
+                                                style: "primary"
                                             }
                                         ]
                                     ]
@@ -137,26 +138,21 @@ class PackageHandler {
 
                         message_post_link = smsg.message_id;
                     }  else if (pending_package.banner_type === "photo"){
-                        const smsg = await bot.sendPhoto(
-                            configuration.posting_channel_id,
-                            pending_package.banner_file_id!,
-                            {
-                                caption_entities: pending_package.banner_entities,
-                                caption: pending_package.banner_caption,
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [
-                                            {
-                                                text: "⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅",
-                                                url: `https://t.me/${configuration.bot_username}?see=${pending_package.package_id}`
-                                            }
-                                        ]
-                                    ]
-                                }
-                            }
+                        const mediaGroup = pending_package.banner_file_ids!.map((fileId, index) =>
+                            InputMediaBuilder.photo(fileId, {
+                                ...(index === 0 && {
+                                    caption: pending_package.banner_caption,
+                                    caption_entities: pending_package.banner_entities,
+                                }),
+                            })
                         );
 
-                        message_post_link = smsg.message_id;
+                        const smsg = await bot.sendMediaGroup(
+                            configuration.posting_channel_id,
+                            mediaGroup
+                        );
+
+                        message_post_link = smsg[smsg.length - 1]!.message_id;
                     }
 
                     await this.changePackageStatus(pending_package.package_id, "done");

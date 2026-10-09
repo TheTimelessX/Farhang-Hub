@@ -10,7 +10,7 @@ export interface Package {
     scheduled_by: number;
     banner_caption: string;
     banner_entities: MessageEntity[];
-    banner_file_id?: string;
+    banner_file_ids?: string[];
     banner_type: "text" | "photo";
     banner_will_at: number;
     banner_delete_at: number;
