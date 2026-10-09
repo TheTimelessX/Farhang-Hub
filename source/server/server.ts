@@ -217,14 +217,10 @@ function convertTime(context: number, from: "seconds" | "minutes" | "hours"): nu
 setInterval(async () => {
     for (const pck of sent_packages.entries()){
         if ((pck[0].next + pck[0].at) <= Date.now()){
-            
-
-            for (const mid of pck[0].mids){
-                await bot.deleteMessages(
-                    pck[0].chat_id,
-                    pck[0].mids
-                );
-            }
+            await bot.deleteMessages(
+                pck[0].chat_id,
+                pck[0].mids
+            );
 
             sent_packages.delete(pck[0]);
         }
