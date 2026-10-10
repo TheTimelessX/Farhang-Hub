@@ -138,6 +138,14 @@ class PackageHandler {
 
                         message_post_link = smsg.message_id;
                     }  else if (pending_package.banner_type === "photo"){
+                        pending_package.banner_caption += "\n\n⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅";
+                        pending_package.banner_entities.push({
+                            offset: pending_package.banner_caption.length - 19,
+                            length: 18,
+                            type: "text_link",
+                            url: `https://t.me/${configuration.bot_username}?start=pck_${pending_package.package_id}`,
+                        });
+
                         const mediaGroup = pending_package.banner_file_ids!.map((fileId, index) =>
                             InputMediaBuilder.photo(fileId, {
                                 ...(index === 0 && {

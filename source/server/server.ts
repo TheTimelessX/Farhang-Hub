@@ -9,8 +9,9 @@ const conf = loadConfiguration();
 const app = fast({ logger: false });
 const bot = new Bot(conf.bot_token).api;
 
-const sent_packages = new Set<{ chat_id: number, mids: number[], next: number, at: number }>();
+const sent_users = new Set<number>();
 const making_package = new Map<number, Omit<Partial<Package>, "package_id" | "status" | "requested">>();
+const stored_file_ids = new Map<number, string[]>();
 
 app.post("/fhub", async (request , reply) => {
     await reply.send("OK");
@@ -75,7 +76,7 @@ app.post("/fhub", async (request , reply) => {
                         return;
                     }
 
-                    const _pack = Array.from(sent_packages).find((val) => val.chat_id === update.message!.chat.id);
+                    const _pack = sent_users.has(update.message.from.id);
 
                     if (_pack){
                         await bot.sendMessage(
@@ -90,28 +91,24 @@ app.post("/fhub", async (request , reply) => {
                         return;
                     }
 
+                    let objects: number[] = [];
+
                     switch (package_info.type) {
                         case "photo":
                             await packageHandler.increaseRequest(package_id);
                             for (const fid of package_info.file_ids){
-                                let objects: number[] = [];
+                                
                                 try {
                                     const sent_photo = await bot.sendPhoto(
                                         update.message.chat.id,
-                                        fid
+                                        fid,
+                                        {
+                                            caption: `تعداد دانلود: ${package_info.requested}`
+                                        }
                                     );
                                     objects.push(sent_photo.message_id);
                                 } catch (e) {
                                     console.error("[server::sentPhoto]", e);
-                                }
-
-                                if (objects.length !== 0){
-                                    sent_packages.add({
-                                        chat_id: update.message.chat.id,
-                                        at: Date.now(),
-                                        next: package_info.banner_delete_at,
-                                        mids: objects
-                                    });
                                 }
                             }
                             break;
@@ -122,20 +119,14 @@ app.post("/fhub", async (request , reply) => {
                                 try {
                                     const send_document = await bot.sendDocument(
                                         update.message.chat.id,
-                                        fid
+                                        fid,
+                                        {
+                                            caption: `تعداد دانلود: ${package_info.requested}`
+                                        }
                                     );
                                     objects.push(send_document.message_id);
                                 } catch (e) {
-                                    console.error("[server:sendDocument:]", e);
-                                }
-
-                                if (objects.length !== 0){
-                                    sent_packages.add({
-                                        chat_id: update.message.chat.id,
-                                        at: Date.now(),
-                                        next: package_info.banner_delete_at,
-                                        mids: objects
-                                    });
+                                    console.error("[server::sendDocument]", e);
                                 }
                             }
                             break;
@@ -146,24 +137,30 @@ app.post("/fhub", async (request , reply) => {
                                 try {
                                     const sent_video = await bot.sendVideo(
                                         update.message.chat.id,
-                                        fid
+                                        fid,
+                                        {
+                                            caption: `تعداد دانلود: ${package_info.requested}`
+                                        }
                                     );
                                     objects.push(sent_video.message_id);
                                 } catch (e) {
                                     console.error("[server::sendVideo]", e);
                                 }
-
-                                if (objects.length !== 0){
-                                    sent_packages.add({
-                                        chat_id: update.message.chat.id,
-                                        at: Date.now(),
-                                        next: package_info.banner_delete_at,
-                                        mids: objects
-                                    });
-                                }
                             }
                             break;
                     }
+
+                    if (objects.length !== 0){
+                        sent_users.add(update.message.from.id);
+                        setTimeout(async () => {
+                            sent_users.delete(update.message!.from.id);
+                            await bot.deleteMessages(
+                                update.message!.chat.id,
+                                objects
+                            );
+                        }, package_info.banner_delete_at);
+                    }
+
                 } else {
                     await bot.sendMessage(
                         update.message.chat.id,
@@ -186,7 +183,7 @@ app.post("/fhub", async (request , reply) => {
                     );
                     return;
                 }
-            } else if (update.message.text.startsWith("/start") && isAdmin(update.message.from.id)){
+            } else if (update.message.text.startsWith("/panel") && isAdmin(update.message.from.id)){
                 if (update.message.chat.type !== "private") return;
                 await bot.sendMessage(
                     update.message.chat.id,
@@ -211,6 +208,37 @@ app.post("/fhub", async (request , reply) => {
                 );
 
                 return;
+            } else if (update.message.text === "تمام" && isAdmin(update.message.from.id)){
+                const pre_stored = stored_file_ids.get(update.message.from.id);
+                if (!pre_stored){
+                    await bot.sendMessage(
+                        update.message.chat.id,
+                        "شما درحال حاضر در موقعیت ثبت پکیج نیستید"
+                    );
+                    return;
+                } else {
+                    await stepHandler.delete(update.message.from.id);
+                    const pck = making_package.get(update.message.from.id) as any;
+                    making_package.set(update.message.from.id, { ...pck, file_ids: pre_stored, file_ids_length: pre_stored.length });
+                    const pack_id = await packageHandler.addPackage(
+                        making_package.get(update.message.from.id) as any
+                    );
+
+                    await bot.sendMessage(
+                        update.message.chat.id,
+                        `✅ | بسته با موفقیت ساخته شد\n\n🆔 | <code>${pack_id}</code>`,
+                        {
+                            parse_mode: "HTML",
+                            reply_parameters: {
+                                message_id: update.message.message_id
+                            }
+                        }
+                    );
+
+                    making_package.delete(update.message.from.id);
+                    
+                    return
+                }
             } else if (update.message.text === "📦 ساخت بنر 📦" && isAdmin(update.message.from.id)){
                 if (update.message.chat.type !== "private") return;
                 making_package.set(update.message.chat.id, { scheduled_by: update.message.from.id });
@@ -311,16 +339,11 @@ app.post("/fhub", async (request , reply) => {
                             const pre_pack = making_package.get(update.message.from.id)!;
                             making_package.set(update.message.from.id, { ...pre_pack, banner_delete_at: ask_for_ms });
 
-                            await stepHandler.delete(update.message.from.id);
-                            const pack_id = await packageHandler.addPackage(
-                                making_package.get(update.message.from.id) as any
-                            );
-
+                            await stepHandler.add(update.message.from.id, { step: "getContents", timestamp: Date.now(), type: making_package.get(update.message.from.id)?.type });
                             await bot.sendMessage(
                                 update.message.chat.id,
-                                `✅ | بسته با موفقیت ساخته شد\n\n🆔 | <code>${pack_id}</code>`,
+                                "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | فایل هارو ارسال بکن, در آخر که همه ی محتوا آپلود شد بنویسید تمام",
                                 {
-                                    parse_mode: "HTML",
                                     reply_parameters: {
                                         message_id: update.message.message_id
                                     }
@@ -393,6 +416,54 @@ app.post("/fhub", async (request , reply) => {
                     );
 
                     return;
+                } else if (has_step.step === "getContent" && has_step.type === "photo" && update.message.photo){
+                    await stepHandler.delete(update.message.from.id);
+                    const pck = making_package.get(update.message.from.id) as any;
+                    making_package.set(update.message.from.id, { ...pck, file_ids: update.message.photo.map((vl) => vl.file_id), file_ids_length: update.message.photo.length });
+                    const pack_id = await packageHandler.addPackage(
+                        making_package.get(update.message.from.id) as any
+                    );
+
+                    await bot.sendMessage(
+                        update.message.chat.id,
+                        `✅ | بسته با موفقیت ساخته شد\n\n🆔 | <code>${pack_id}</code>`,
+                        {
+                            parse_mode: "HTML",
+                            reply_parameters: {
+                                message_id: update.message.message_id
+                            }
+                        }
+                    );
+                }
+            }
+        } else if (update.message.document){
+            if (isAdmin(update.message.from.id)){
+                const has_step = await stepHandler.has(update.message.from.id);
+                if (!has_step) return;
+
+                if (has_step.step === "getContent" && has_step.type === "document" && update.message.document){
+                    if (!stored_file_ids.has(update.message.from.id)){
+                        stored_file_ids.set(update.message.from.id, [ update.message.document.file_id ]);
+                    } else {
+                        const pre_stored = stored_file_ids.get(update.message.from.id)!;
+                        pre_stored.push(update.message.document.file_id);
+                        stored_file_ids.set(update.message.from.id, pre_stored);
+                    }
+                }
+            }
+        } else if (update.message.video){
+            if (isAdmin(update.message.from.id)){
+                const has_step = await stepHandler.has(update.message.from.id);
+                if (!has_step) return;
+
+                if (has_step.step === "getContent" && has_step.type === "video" && update.message.video){
+                    if (!stored_file_ids.has(update.message.from.id)){
+                        stored_file_ids.set(update.message.from.id, [ update.message.video.file_id ]);
+                    } else {
+                        const pre_stored = stored_file_ids.get(update.message.from.id)!;
+                        pre_stored.push(update.message.video.file_id);
+                        stored_file_ids.set(update.message.from.id, pre_stored);
+                    }
                 }
             }
         }
@@ -455,16 +526,3 @@ async function convertTime(context: number, from: "seconds" | "minutes" | "hours
             return context * 3600 * 1000;
     }
 }
-
-setInterval(async () => {
-    for (const pck of sent_packages.entries()){
-        if ((pck[0].next + pck[0].at) <= Date.now()){
-            await bot.deleteMessages(
-                pck[0].chat_id,
-                pck[0].mids
-            );
-
-            sent_packages.delete(pck[0]);
-        }
-    }
-}, 5000);
