@@ -17,6 +17,8 @@ app.post("/fhub", async (request , reply) => {
     await reply.send("OK");
     const update = request.body as Update;
 
+    if (conf.log_messages) console.log(update);
+
     if (update.message){
         if (update.message.text){
             if (update.message.text.startsWith("/start") && !isAdmin(update.message.from.id)){

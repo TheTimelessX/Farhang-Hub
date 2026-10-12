@@ -3,5 +3,6 @@
     "bot_username": "@",
     "admins": [],
     "protected_channel": "@",
-    "posting_channel_id": 0
+    "posting_channel_id": 0,
+    "log_messages": true
 }

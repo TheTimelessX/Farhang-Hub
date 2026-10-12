@@ -9,6 +9,7 @@ export interface Configuration {
     admins: number[];
     protected_channel: string;
     posting_channel_id: number;
+    log_messages: boolean;
 }
 
 export function loadConfiguration(): Configuration {
