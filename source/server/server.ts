@@ -1,7 +1,7 @@
 import { fastify as fast } from "fastify";
 import { Bot } from "grammy";
-import { Update } from "grammy/types";
-import { loadConfiguration } from "../configurations";
+import { Update, KeyboardButton } from "grammy/types";
+import { Configuration, loadConfiguration, saveConfiguration } from "../configurations";
 import { packageHandler, stepHandler } from "../database";
 import { Package } from "../interfaces";
 
@@ -24,8 +24,14 @@ app.post("/fhub", async (request , reply) => {
             if (update.message.text.startsWith("/start") && !isAdmin(update.message.from.id)){
                 if (update.message.chat.type !== "private") return;
 
-                const ismember = await isMember(update.message.from.id);
-                if (!ismember) {
+                const configur = loadConfiguration();
+                const ismember = await isMember(update.message.from.id, configur);
+                if (ismember !== null) {
+                    const items_to_push = [];
+                    for (const lid of ismember.links_to_join){
+                        items_to_push.push({ text: "کانال", url: lid });
+                    }
+
                     await bot.sendMessage(
                         update.message.chat.id,
                         "🔴 | برای استفاده از ربات اول جوین لینک داخل کانال زیر بشو",
@@ -40,7 +46,8 @@ app.post("/fhub", async (request , reply) => {
                                             text: "Farhang Hub",
                                             url: "https://t.me/" + conf.protected_channel.replace("@", "")
                                         }
-                                    ]
+                                    ],
+                                    items_to_push
                                 ]
                             }
                         }
@@ -195,14 +202,7 @@ app.post("/fhub", async (request , reply) => {
                             message_id: update.message.message_id
                         },
                         reply_markup: {
-                            keyboard: [
-                                [
-                                    {
-                                        text: "📦 ساخت بنر 📦",
-                                        style: "success"
-                                    }
-                                ]
-                            ],
+                            keyboard: getKeyboard(),
                             resize_keyboard: true,
                             one_time_keyboard: true
                         }
@@ -241,7 +241,55 @@ app.post("/fhub", async (request , reply) => {
                     
                     return
                 }
-            } else if (update.message.text === "📦 ساخت بنر 📦" && isAdmin(update.message.from.id)){
+            } else if (update.message.text === "🟥 حذف جوین اجباری 🟥" && isAdmin(update.message.from.id)){
+                if (update.message.chat.type !== "private") return;
+                await bot.sendMessage(
+                    update.message.chat.id,
+                    "🆔 | برای حذف اطلاعات جوین اجباری فقط آیدی عددی کانالی که میخوای جوین اجباریش رو از روی من برداری بفرست تا من برای ممبر های جدید نشون ندم",
+                    {
+                        reply_parameters: {
+                            message_id: update.message.message_id
+                        }
+                    }
+                ).then(async (msg) => {
+                    await stepHandler.add(update.message!.from.id, { step: "getDeleteForceId", timestamp: Date.now(), mid: msg.message_id });
+                });
+                return;
+            } else if (update.message.text === "📋 لیست جوین اجباری 📋" && isAdmin(update.message.from.id)){
+                if (update.message.chat.type !== "private") return;
+                const conf = loadConfiguration();
+                let txt = `📄 | لیست جوین اجباری [ ${conf.force_to.length} ]\n`;
+
+                for (const frc of conf.force_to){
+                    txt += `\n` + "=".repeat(20) + `🆔 | آیدی عددی: <code>${frc.id}</code>\n🔗 | لینک: ${frc.private_link}`
+                }
+
+                await bot.sendMessage(
+                    update.message.chat.id,
+                    txt,
+                    {
+                        parse_mode: "HTML",
+                        reply_parameters: {
+                            message_id: update.message.message_id
+                        }
+                    }
+                );
+                return;
+            } else if (update.message.text === "📦 تنظیم جوین اجباری 📦" && isAdmin(update.message.from.id)){
+                if (update.message.chat.type !== "private") return;
+                await bot.sendMessage(
+                    update.message.chat.id,
+                    "🆔 | برای تنظیم جوین اجباری آیدی عددی چنل مورد نظر رو ارسال بکن\n\n⚠️ | قبل از ست کردن تنظیمات حتما مطمعن باش که ربات داخل چنل مورد نظر ادمینه در غیر این صورت ربات عملکرد ناموفقی خواهد داشت",
+                    {
+                        reply_parameters: {
+                            message_id: update.message.message_id
+                        }
+                    }
+                ).then(async (msg) => {
+                    await stepHandler.add(update.message!.from.id, { step: "getForceJoinId", timestamp: Date.now(), mid: msg.message_id });
+                });
+                return;
+            } else if (update.message.text === "⚒️ ساخت بنر ⚒️" && isAdmin(update.message.from.id)){
                 if (update.message.chat.type !== "private") return;
                 making_package.set(update.message.chat.id, { scheduled_by: update.message.from.id });
                 await bot.sendMessage(
@@ -353,49 +401,65 @@ app.post("/fhub", async (request , reply) => {
                             );
 
                             return;
+                        } else if (has_step.step === "getForceJoinId"){
+                            if (!(/^-\d+$/.test(update.message.text))) return;
+                            const pre_step = await stepHandler.has(update.message.from.id);
+                            await stepHandler.add(update.message.from.id, { step: "getForceJoinLink", timestamp: Date.now(), id: parseInt(update.message.text), mid: pre_step!.mid });
+                            await bot.editMessageText(
+                                update.message.chat.id,
+                                pre_step!.mid,
+                                "🆔 | لینک چنل مورد نظر رو ارسال بکن\n\n⚠️ | قبل از ست کردن تنظیمات حتما مطمعن باش که ربات داخل چنل مورد نظر ادمینه در غیر این صورت ربات عملکرد ناموفقی خواهد داشت"
+                            );
+                            return;
+                        } else if (has_step.step === "getForceJoinLink"){
+                            if (!(/^https?:\/\/.+/.test(update.message.text))) return;
+                            stepHandler.has(update.message.from.id).then(async (userStep) => {
+                                await stepHandler.delete(update.message!.from.id);
+                                const conf = loadConfiguration();
+                                conf.force_to.push({ id: userStep!.id, private_link: update.message!.text! });
+                                saveConfiguration(conf);
+                                await bot.editMessageText(
+                                    update.message!.chat.id,
+                                    userStep!.mid,
+                                    "✅ | عضو اجباری با موفقیت اضافه شد"
+                                );
+                                return;
+                            });
+                        } else if (has_step.step === "getDeleteForceId"){
+                            if (!(/^-\d+$/.test(update.message.text))) return;
+                            const pre_step = await stepHandler.has(update.message.from.id);
+                            await stepHandler.delete(update.message.from.id);
+                            await bot.deleteMessage(update.message.chat.id, pre_step!.mid);
+                            const conf = loadConfiguration();
+                            const target_channel = conf.force_to.find((vl) => vl.id === parseInt(update.message!.text!));
+                            if (!target_channel){
+                                await bot.sendMessage(
+                                    update.message.chat.id,
+                                    "🔴 | همچین آیدی چنلی توی لیست من پیدا نشد",
+                                    {
+                                        reply_parameters: {
+                                            message_id: update.message.message_id
+                                        }
+                                    }
+                                );
+                                return;
+                            }
+
+                            conf.force_to = conf.force_to.filter((vl) => vl.id !== parseInt(update.message!.text!));
+                            saveConfiguration(conf);
+
+                            await bot.sendMessage(
+                                update.message.chat.id,
+                                "✅ | کانال مورد نظر با موفقیت از لیست جوین اجباری حذف شد",
+                                {
+                                    reply_parameters: {
+                                        message_id: update.message.message_id
+                                    }
+                                }
+                            );
+                            return;
                         }
                     }
-                }
-            }
-        } else if (update.callback_query){
-            if (!update.callback_query.data) return;
-            if (!update.callback_query.message) return;
-
-            if (update.callback_query.data.startsWith("selectpackagetype")){
-                const packtype = update.callback_query.data.slice(18) as "photo" | "video" | "document";
-                const pre_pack = making_package.get(update.callback_query.from.id)!;
-                making_package.set(update.callback_query.from.id, { ...pre_pack, type: packtype });
-                stepHandler.add(update.callback_query.from.id, { step: "getCaption", timestamp: Date.now() });
-                await bot.editMessageText(
-                    update.callback_query.message.chat.id,
-                    update.callback_query.message.message_id,
-                    "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | کپشن چی باشه؟ ارسالش کن"
-                );
-            } else if (update.callback_query.data.startsWith("selectbannertype")){
-                const bannertype = update.callback_query.data.slice(17) as "photo" | "text";
-                const pre_pack = making_package.get(update.callback_query.from.id)!;
-                making_package.set(update.callback_query.from.id, { ...pre_pack, banner_type: bannertype });
-                if (bannertype === "photo"){
-                    stepHandler.add(update.callback_query.from.id, { step: "getBannerPhoto", timestamp: Date.now() });
-                    await bot.editMessageText(
-                        update.callback_query.message.chat.id,
-                        update.callback_query.message.message_id,
-                        "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | عکس بنر رو ارسال بکن"
-                    );
-                    return;
-                } else {
-                    await stepHandler.add(update.message.from.id, { step: "getSendTimer", timestamp: Date.now() });
-                    await bot.sendMessage(
-                        update.message.chat.id,
-                        "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | بنر توی چه زمانی ارسال بشه به چنل؟ مثال: ۱۰ دقیقه",
-                        {
-                            reply_parameters: {
-                                message_id: update.message.message_id
-                            }
-                        }
-                    );
-
-                    return;
                 }
             }
         } else if (update.message.photo){
@@ -469,7 +533,49 @@ app.post("/fhub", async (request , reply) => {
                 }
             }
         }
-    }
+    } else if (update.callback_query){
+            if (!update.callback_query.data) return;
+            if (!update.callback_query.message) return;
+            if (!update.callback_query.message.from) return;
+
+            if (update.callback_query.data.startsWith("selectpackagetype")){
+                const packtype = update.callback_query.data.slice(18) as "photo" | "video" | "document";
+                const pre_pack = making_package.get(update.callback_query.from.id)!;
+                making_package.set(update.callback_query.from.id, { ...pre_pack, type: packtype });
+                stepHandler.add(update.callback_query.from.id, { step: "getCaption", timestamp: Date.now() });
+                await bot.editMessageText(
+                    update.callback_query.message.chat.id,
+                    update.callback_query.message.message_id,
+                    "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | کپشن چی باشه؟ ارسالش کن"
+                );
+            } else if (update.callback_query.data.startsWith("selectbannertype")){
+                const bannertype = update.callback_query.data.slice(17) as "photo" | "text";
+                const pre_pack = making_package.get(update.callback_query.from.id)!;
+                making_package.set(update.callback_query.from.id, { ...pre_pack, banner_type: bannertype });
+                if (bannertype === "photo"){
+                    stepHandler.add(update.callback_query.from.id, { step: "getBannerPhoto", timestamp: Date.now() });
+                    await bot.editMessageText(
+                        update.callback_query.message.chat.id,
+                        update.callback_query.message.message_id,
+                        "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | عکس بنر رو ارسال بکن"
+                    );
+                    return;
+                } else {
+                    await stepHandler.add(update.callback_query.message.from.id, { step: "getSendTimer", timestamp: Date.now() });
+                    await bot.sendMessage(
+                        update.callback_query.message.chat.id,
+                        "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | بنر توی چه زمانی ارسال بشه به چنل؟ مثال: ۱۰ دقیقه",
+                        {
+                            reply_parameters: {
+                                message_id: update.callback_query.message.message_id
+                            }
+                        }
+                    );
+
+                    return;
+                }
+            }
+        }
 });
 
 app.listen({ port: 6578, host: "127.0.0.1" }, async (err, addr) => {
@@ -477,12 +583,25 @@ app.listen({ port: 6578, host: "127.0.0.1" }, async (err, addr) => {
     if (addr) console.error("[server]", addr);
 });
 
-async function isMember(userId: number): Promise<boolean> {
+async function isMember(userId: number, configuration: Configuration): Promise<{ links_to_join: string[] } | null> {
+    const all_links = { links_to_join: [ ...configuration.force_to.map((vl) => vl.private_link) ] };
   try {
+    let status = false;
     const member = await bot.getChatMember(conf.posting_channel_id, userId);
-    return ["creator", "administrator", "member", "restricted"].includes(member.status);
+    status =  ["creator", "administrator", "member", "restricted"].includes(member.status);
+
+    if (!status) return all_links
+
+    for (const force of configuration.force_to){
+        const member = await bot.getChatMember(force.id, userId);
+        const member_status =  ["creator", "administrator", "member", "restricted"].includes(member.status);
+
+        if (!member_status) return all_links;
+    }
+
+    return null;
   } catch (error) {
-    return false;
+    return all_links;
   }
 }
 
@@ -527,4 +646,31 @@ async function convertTime(context: number, from: "seconds" | "minutes" | "hours
         case "hours":
             return context * 3600 * 1000;
     }
+}
+
+function getKeyboard(): KeyboardButton[][] {
+    return [
+        [
+            {
+                text: "⚒️ ساخت بنر ⚒️",
+                style: "success"
+            },
+            {
+                text: "📦 تنظیم جوین اجباری 📦",
+                style: "success"
+            }
+        ],
+        [
+            {
+                text: "📋 لیست جوین اجباری 📋",
+                style: "primary"
+            }
+        ],
+        [
+            {
+                text: "🟥 حذف جوین اجباری 🟥",
+                style: "danger"
+            }
+        ]
+    ];
 }

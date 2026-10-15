@@ -4,5 +4,6 @@
     "admins": [],
     "protected_channel": "@",
     "posting_channel_id": 0,
+    "force_to": [],
     "log_messages": true
 }

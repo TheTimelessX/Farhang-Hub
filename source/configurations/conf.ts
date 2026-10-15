@@ -9,6 +9,7 @@ export interface Configuration {
     admins: number[];
     protected_channel: string;
     posting_channel_id: number;
+    force_to: { id: number, private_link: string }[];
     log_messages: boolean;
 }
 
