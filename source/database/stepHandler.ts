@@ -2,13 +2,13 @@ class StepHandler {
     private steps = new Map<number, { step: string, timestamp: number, [k: string]: any }>();
 
     constructor() {
-        setInterval(async () => {
-            for (const step of this.steps){
-                if ((step[1].timestamp + 420000) <= Date.now()){
-                    await this.delete(step[0]);
-                }
-            }
-        }, 10000);
+        // setInterval(async () => {
+        //     for (const step of this.steps){
+        //         if ((step[1].timestamp + 420000) <= Date.now()){
+        //             await this.delete(step[0]);
+        //         }
+        //     }
+        // }, 10000);
     }
 
     async add(k: number, record: { step: string, timestamp: number, [k: string]: any }): Promise<void> {

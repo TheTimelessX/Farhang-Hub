@@ -13,6 +13,8 @@ const sent_users = new Set<number>();
 const making_package = new Map<number, Omit<Partial<Package>, "package_id" | "status" | "requested">>();
 const stored_file_ids = new Map<number, string[]>();
 
+packageHandler.watch(bot, conf);
+
 app.post("/fhub", async (request , reply) => {
     await reply.send("OK");
     const update = request.body as Update;
@@ -223,13 +225,13 @@ app.post("/fhub", async (request , reply) => {
                     const pck = making_package.get(update.message.from.id) as any;
                     making_package.set(update.message.from.id, { ...pck, file_ids: pre_stored, file_ids_length: pre_stored.length });
                     stored_file_ids.delete(update.message.from.id);
-                    const pack_id = await packageHandler.addPackage(
+                    const pack = await packageHandler.addPackage(
                         making_package.get(update.message.from.id) as any
                     );
 
                     await bot.sendMessage(
                         update.message.chat.id,
-                        `✅ | بسته با موفقیت ساخته شد\n\n🆔 | <code>${pack_id}</code>`,
+                        `✅ | بسته با موفقیت ساخته شد\n\n🆔 | <code>${pack.package_id}</code>`,
                         {
                             parse_mode: "HTML",
                             reply_parameters: {

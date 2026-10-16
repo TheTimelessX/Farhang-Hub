@@ -7,6 +7,7 @@ import { randomUUID } from "crypto";
 class PackageHandler {
     private db: string = "packages";
     private coll: string = "packages_collection";
+    private has_watching: boolean = false;
 
     constructor(){
         MongoManager.connect();
@@ -77,7 +78,7 @@ class PackageHandler {
             const package_info: Package = {
                 ...packaged,
                 package_id,
-                status: "done",
+                status: "pending",
                 requested: 0
             };
 
@@ -105,6 +106,8 @@ class PackageHandler {
     }
 
     async watch(bot: Api<RawApi>, configuration: Configuration): Promise<void> {
+        if (this.has_watching) return;
+        this.has_watching = true;
         await this.ensureReady();
         const pending_packages = await this.getPendingPackages();
         const limit_time_ms = 5000;
@@ -126,7 +129,7 @@ class PackageHandler {
                                         [
                                             {
                                                 text: "⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅",
-                                                url: `https://t.me/${configuration.bot_username}?start=pck_${pending_package.package_id}`,
+                                                url: `https://t.me/${configuration.bot_username.replaceAll("@", "")}?start=pck_${pending_package.package_id}`,
                                                 style: "primary"
                                             }
                                         ]
@@ -142,29 +145,51 @@ class PackageHandler {
                             offset: pending_package.banner_caption.length - 19,
                             length: 18,
                             type: "text_link",
-                            url: `https://t.me/${configuration.bot_username}?start=pck_${pending_package.package_id}`,
+                            url: `https://t.me/${configuration.bot_username.replaceAll("@", "")}?start=pck_${pending_package.package_id}`,
                         });
 
-                        const mediaGroup = pending_package.banner_file_ids!.map((fileId, index) =>
-                            InputMediaBuilder.photo(fileId, {
-                                ...(index === 0 && {
+                        if (pending_package.banner_file_ids!.length > 1){
+                            const mediaGroup = pending_package.banner_file_ids!.map((fileId, index) =>
+                                InputMediaBuilder.photo(fileId, {
+                                    ...(index === 0 && {
+                                        caption: pending_package.banner_caption,
+                                        caption_entities: pending_package.banner_entities,
+                                    }),
+                                })
+                            );
+
+                            const smsg = await bot.sendMediaGroup(
+                                configuration.posting_channel_id,
+                                mediaGroup
+                            );
+
+                            message_post_link = smsg[smsg.length - 1]!.message_id;
+                        } else {
+                            await bot.sendPhoto(
+                                configuration.posting_channel_id,
+                                pending_package.banner_file_ids![0]!,
+                                {
                                     caption: pending_package.banner_caption,
                                     caption_entities: pending_package.banner_entities,
-                                }),
-                            })
-                        );
-
-                        const smsg = await bot.sendMediaGroup(
-                            configuration.posting_channel_id,
-                            mediaGroup
-                        );
-
-                        message_post_link = smsg[smsg.length - 1]!.message_id;
+                                    reply_markup: {
+                                        inline_keyboard: [
+                                            [
+                                                {
+                                                    text: "⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅",
+                                                    url: `https://t.me/${configuration.bot_username.replaceAll("@", "")}?start=pck_${pending_package.package_id}`,
+                                                    style: "primary"
+                                                }
+                                            ]
+                                        ]
+                                    }
+                                }
+                            );
+                        }
                     }
 
                     await this.changePackageStatus(pending_package.package_id, "done");
 
-                    const text_to_send = "✅ | بنر با موفقیت داخل چنل گذاشته شد\n\n🔹 | نگاه کنید";
+                    const text_to_send = `✅ | بنر با موفقیت داخل چنل گذاشته شد\n\n🔹 | <code>${pending_package.package_id}</code>`;
                     await bot.sendMessage(
                         pending_package.scheduled_by,
                         text_to_send,
