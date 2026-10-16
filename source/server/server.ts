@@ -493,7 +493,8 @@ app.post("/fhub", async (request , reply) => {
                 if (has_step.step === "getBannerPhoto" && update.message.photo){
                     await stepHandler.add(update.message.from.id, { step: "getSendTimer", timestamp: Date.now() });
                     const pre_pack = making_package.get(update.message.from.id)!;
-                    making_package.set(update.message.from.id, { ...pre_pack, banner_file_ids: update.message.photo.map((vl) => vl.file_id), file_ids_length: update.message.photo.length });
+                    const banner_file_ids = Array.from(new Set(update.message.photo.map((vl) => vl.file_id)));
+                    making_package.set(update.message.from.id, { ...pre_pack, banner_file_ids, file_ids_length: update.message.photo.length });
                     await bot.sendMessage(
                         update.message.chat.id,
                         "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | بنر توی چه زمانی ارسال بشه به چنل؟ مثال: ۱۰ دقیقه",

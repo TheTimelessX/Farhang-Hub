@@ -140,10 +140,11 @@ class PackageHandler {
 
                         message_post_link = smsg.message_id;
                     }  else if (pending_package.banner_type === "photo"){
+                        const old_length = pending_package.banner_caption.length;
                         pending_package.banner_caption += "\n\n⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅";
                         pending_package.banner_entities.push({
-                            offset: pending_package.banner_caption.length - 19,
-                            length: 18,
+                            offset: old_length + 3,
+                            length: "⇨ 𝑫𝒐𝒘𝒏𝒍𝒐𝒂𝒅".length,
                             type: "text_link",
                             url: `https://t.me/${configuration.bot_username.replaceAll("@", "")}?start=pck_${pending_package.package_id}`,
                         });
