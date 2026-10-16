@@ -195,14 +195,7 @@ class PackageHandler {
                         pending_package.scheduled_by,
                         text_to_send,
                         {
-                            entities: [
-                                {
-                                    type: "text_link",
-                                    offset: text_to_send.length - 9,
-                                    length: 9,
-                                    url: `https://t.me/${configuration.posting_channel_id}/${message_post_link!}`
-                                }
-                            ]
+                            parse_mode: "HTML"
                         }
                     );
 
