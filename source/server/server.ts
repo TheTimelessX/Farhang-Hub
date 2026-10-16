@@ -21,7 +21,7 @@ app.post("/fhub", async (request , reply) => {
 
     if (update.message){
         if (update.message.text){
-            if (update.message.text.startsWith("/start") && !isAdmin(update.message.from.id)){
+            if (update.message.text.startsWith("/start")){
                 if (update.message.chat.type !== "private") return;
 
                 const configur = loadConfiguration();
@@ -222,6 +222,7 @@ app.post("/fhub", async (request , reply) => {
                     await stepHandler.delete(update.message.from.id);
                     const pck = making_package.get(update.message.from.id) as any;
                     making_package.set(update.message.from.id, { ...pck, file_ids: pre_stored, file_ids_length: pre_stored.length });
+                    stored_file_ids.delete(update.message.from.id);
                     const pack_id = await packageHandler.addPackage(
                         making_package.get(update.message.from.id) as any
                     );
@@ -233,6 +234,11 @@ app.post("/fhub", async (request , reply) => {
                             parse_mode: "HTML",
                             reply_parameters: {
                                 message_id: update.message.message_id
+                            },
+                            reply_markup: {
+                                keyboard: getKeyboard(),
+                                one_time_keyboard: true,
+                                resize_keyboard: true
                             }
                         }
                     );
@@ -271,6 +277,11 @@ app.post("/fhub", async (request , reply) => {
                         parse_mode: "HTML",
                         reply_parameters: {
                             message_id: update.message.message_id
+                        },
+                        reply_markup: {
+                            keyboard: getKeyboard(),
+                            one_time_keyboard: true,
+                            resize_keyboard: true
                         }
                     }
                 );
@@ -313,7 +324,7 @@ app.post("/fhub", async (request , reply) => {
                                 ],
                                 [
                                     {
-                                        text: `🗎 فایل 🗎`,
+                                        text: `📂 فایل 📂`,
                                         callback_data: "selectpackagetype_document"
                                     }
                                 ]
@@ -343,12 +354,12 @@ app.post("/fhub", async (request , reply) => {
                                         inline_keyboard: [
                                             [
                                                 {
-                                                    text: `🗟 متن خالی`,
-                                                    callback_data: "selectbannertype_textonly"
+                                                    text: `🗨️ متن خالی`,
+                                                    callback_data: "selectbannertype_text"
                                                 },
                                                 {
                                                     text: `عکس 📷`,
-                                                    callback_data: "selectbannertype_piconly"
+                                                    callback_data: "selectbannertype_photo"
                                                 }
                                             ],
                                         ]
@@ -439,6 +450,11 @@ app.post("/fhub", async (request , reply) => {
                                     {
                                         reply_parameters: {
                                             message_id: update.message.message_id
+                                        },
+                                        reply_markup: {
+                                            keyboard: getKeyboard(),
+                                            one_time_keyboard: true,
+                                            resize_keyboard: true
                                         }
                                     }
                                 );
@@ -454,6 +470,11 @@ app.post("/fhub", async (request , reply) => {
                                 {
                                     reply_parameters: {
                                         message_id: update.message.message_id
+                                    },
+                                    reply_markup: {
+                                        keyboard: getKeyboard(),
+                                        one_time_keyboard: true,
+                                        resize_keyboard: true
                                     }
                                 }
                             );
@@ -483,23 +504,13 @@ app.post("/fhub", async (request , reply) => {
 
                     return;
                 } else if (has_step.step === "getContent" && has_step.type === "photo" && update.message.photo){
-                    await stepHandler.delete(update.message.from.id);
-                    const pck = making_package.get(update.message.from.id) as any;
-                    making_package.set(update.message.from.id, { ...pck, file_ids: update.message.photo.map((vl) => vl.file_id), file_ids_length: update.message.photo.length });
-                    const pack_id = await packageHandler.addPackage(
-                        making_package.get(update.message.from.id) as any
-                    );
-
-                    await bot.sendMessage(
-                        update.message.chat.id,
-                        `✅ | بسته با موفقیت ساخته شد\n\n🆔 | <code>${pack_id}</code>`,
-                        {
-                            parse_mode: "HTML",
-                            reply_parameters: {
-                                message_id: update.message.message_id
-                            }
-                        }
-                    );
+                    if (!stored_file_ids.has(update.message.from.id)){
+                        stored_file_ids.set(update.message.from.id, [ ...update.message.photo.map((ph) => ph.file_id) ]);
+                    } else {
+                        const pre_stored = stored_file_ids.get(update.message.from.id)!;
+                        pre_stored.push(...update.message.photo.map((ph) => ph.file_id));
+                        stored_file_ids.set(update.message.from.id, pre_stored);
+                    }
                 }
             }
         } else if (update.message.document){
@@ -561,7 +572,7 @@ app.post("/fhub", async (request , reply) => {
                     );
                     return;
                 } else {
-                    await stepHandler.add(update.callback_query.message.from.id, { step: "getSendTimer", timestamp: Date.now() });
+                    await stepHandler.add(update.callback_query.from.id, { step: "getSendTimer", timestamp: Date.now() });
                     await bot.sendMessage(
                         update.callback_query.message.chat.id,
                         "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | بنر توی چه زمانی ارسال بشه به چنل؟ مثال: ۱۰ دقیقه",
