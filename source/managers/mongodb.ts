@@ -11,6 +11,7 @@ class MongoManager {
     async connect(){
         if (!this.hasConnected){
             await this.driver.connect();
+            this.hasConnected = true;
         }
     }
 

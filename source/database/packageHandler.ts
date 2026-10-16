@@ -7,14 +7,13 @@ import { randomUUID } from "crypto";
 class PackageHandler {
     private db: string = "packages";
     private coll: string = "packages_collection";
-    private ready: Promise<void>;
 
     constructor(){
-        this.ready = MongoManager.connect();
+        MongoManager.connect();
     }
 
     private async ensureReady(): Promise<void> {
-        await this.ready;
+        await MongoManager.connect();
     }
 
     async getPackageById(package_id: string): Promise<Package | null> {

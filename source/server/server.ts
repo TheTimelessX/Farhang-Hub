@@ -400,7 +400,7 @@ app.post("/fhub", async (request , reply) => {
                             const pre_pack = making_package.get(update.message.from.id)!;
                             making_package.set(update.message.from.id, { ...pre_pack, banner_delete_at: ask_for_ms });
 
-                            await stepHandler.add(update.message.from.id, { step: "getContents", timestamp: Date.now(), type: making_package.get(update.message.from.id)?.type });
+                            await stepHandler.add(update.message.from.id, { step: "getContent", timestamp: Date.now(), type: making_package.get(update.message.from.id)?.type });
                             await bot.sendMessage(
                                 update.message.chat.id,
                                 "📦 | با این پنل میتونی بنر بسازی تا ربات خودکار به چنل ارسال بکنه\n\n💡 | فایل هارو ارسال بکن, در آخر که همه ی محتوا آپلود شد بنویسید تمام",
