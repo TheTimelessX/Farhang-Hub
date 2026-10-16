@@ -70,7 +70,7 @@ class PackageHandler {
     async addPackage(packaged: Omit<Package, "package_id" | "status" | "requested">): Promise<Package> {
         await this.ensureReady();
         return new Promise(async (resolve) => {
-            const package_id = randomUUID() + "-" + randomUUID();
+            const package_id = randomUUID();
             const package_info: Package = {
                 ...packaged,
                 package_id,
@@ -103,23 +103,25 @@ class PackageHandler {
         this.has_watching = true;
         await this.ensureReady();
 
-        const pending_packages = await this.getPendingPackages();
-        const limit_time_ms = 5000;
-        let queue_on = 1;
+        setInterval(async () => {
+            const pending_packages = await this.getPendingPackages();
+            const limit_time_ms = 5000;
+            let queue_on = 1;
 
-        for (const pending_package of pending_packages) {
-            if (pending_package.banner_will_at <= Date.now()) {
-                setTimeout(async () => {
-                    try {
-                        await this.sendBanner(bot, configuration, pending_package);
-                    } catch (e) {
-                        console.error("[packageHandler::watch]", e);
-                    }
-                }, limit_time_ms * queue_on);
+            for (const pending_package of pending_packages) {
+                if (pending_package.banner_will_at <= Date.now()) {
+                    setTimeout(async () => {
+                        try {
+                            await this.sendBanner(bot, configuration, pending_package);
+                        } catch (e) {
+                            console.error("[packageHandler::watch]", e);
+                        }
+                    }, limit_time_ms * queue_on);
 
-                queue_on += 1;
+                    queue_on += 1;
+                }
             }
-        }
+        }, 10000);
     }
 
     private async sendBanner(
