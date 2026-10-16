@@ -17,9 +17,9 @@ type MediaGroupBuffer = {
     user_id: number;
     chat_id: number;
     step: { step: string; type?: string };
-    photos: string[]; // فقط بزرگ‌ترین file_id هر عکس
+    photos: string[]; 
     first_message_id: number;
-    is_banner: boolean; // آیا مربوط به getBannerPhoto هست؟
+    is_banner: boolean; 
     timeout: NodeJS.Timeout;
 };
 
@@ -28,7 +28,6 @@ const MEDIA_GROUP_DELAY_MS = 1000;
 
 packageHandler.watch(bot, conf);
 
-// ===== Helper: flush media group =====
 async function flushMediaGroup(media_group_id: string) {
     const buffered = media_group_buffer.get(media_group_id);
     if (!buffered) return;
@@ -36,7 +35,7 @@ async function flushMediaGroup(media_group_id: string) {
     media_group_buffer.delete(media_group_id);
 
     if (buffered.is_banner) {
-        // آلبوم بنر (چند عکس بنر)
+        
         await stepHandler.add(buffered.user_id, { step: "getSendTimer", timestamp: Date.now() });
         const pre_pack = making_package.get(buffered.user_id)!;
         making_package.set(buffered.user_id, {
@@ -55,7 +54,6 @@ async function flushMediaGroup(media_group_id: string) {
         return;
     }
 
-    // آلبوم محتوا (getContent)
     if (buffered.step.step === "getContent" && buffered.step.type === "photo") {
         if (!stored_file_ids.has(buffered.user_id)) {
             stored_file_ids.set(buffered.user_id, [...buffered.photos]);
@@ -67,12 +65,10 @@ async function flushMediaGroup(media_group_id: string) {
     }
 }
 
-// ===== Helper: بزرگ‌ترین file_id یک عکس =====
 function largestPhotoFileId(photo: { file_id: string }[]): string {
     return photo[photo.length - 1]!.file_id;
 }
 
-// ===== Helper: افزودن تک عکس به stored =====
 function pushSinglePhoto(user_id: number, file_id: string) {
     if (!stored_file_ids.has(user_id)) {
         stored_file_ids.set(user_id, [file_id]);
@@ -88,9 +84,28 @@ app.post("/fhub", async (request, reply) => {
     if (conf.log_messages) console.log(update);
 
     if (update.message) {
-        // ================= TEXT =================
         if (update.message.text) {
-            if (update.message.text.startsWith("/start")) {
+            if (update.message.text.startsWith("/cancel") && isAdmin(update.message.from.id)) {
+                await stepHandler.delete(update.message.from.id);
+                if (making_package.has(update.message.from.id)) making_package.delete(update.message.from.id);
+                if (stored_file_ids.has(update.message.from.id)) making_package.delete(update.message.from.id);
+                let mgb_to_delete: string[] = [];
+                Array.from(media_group_buffer.entries()).filter((mgb) => {if (mgb[1].user_id === update.message!.from.id) mgb_to_delete.push(mgb[0])});
+                for (const arrbg of mgb_to_delete){
+                    media_group_buffer.delete(arrbg);
+                }
+
+                await bot.sendMessage(
+                    update.message.chat.id,
+                    "✅ | تمام پروسه های شما دلیت شد",
+                    {
+                        reply_parameters: {
+                            message_id: update.message.message_id
+                        }
+                    }
+                );
+                return;
+            } else if (update.message.text.startsWith("/start")) {
                 if (update.message.chat.type !== "private") return;
 
                 const configur = loadConfiguration();
@@ -512,7 +527,7 @@ app.post("/fhub", async (request, reply) => {
             }
         }
 
-        // ================= PHOTO =================
+        
         else if (update.message.photo) {
             if (!isAdmin(update.message.from.id)) return;
 
@@ -521,16 +536,16 @@ app.post("/fhub", async (request, reply) => {
 
             const largest = largestPhotoFileId(update.message.photo);
 
-            // ----- بنر: getBannerPhoto -----
+            
             if (has_step.step === "getBannerPhoto") {
                 if (update.message.media_group_id) {
-                    // آلبوم بنر → buffer
+                    
                     const mgid = update.message.media_group_id;
                     const existing = media_group_buffer.get(mgid);
 
                     if (existing) {
                         existing.photos.push(largest);
-                        // تایمر رو ریست کن که بعد از آخرین عکس flush بشه
+                        
                         clearTimeout(existing.timeout);
                         existing.timeout = setTimeout(() => {
                             flushMediaGroup(mgid).catch((e) => console.error("[flushMediaGroup:banner]", e));
@@ -551,7 +566,7 @@ app.post("/fhub", async (request, reply) => {
                         });
                     }
                 } else {
-                    // عکس تکی بنر
+                    
                     await stepHandler.add(update.message.from.id, { step: "getSendTimer", timestamp: Date.now() });
                     const pre_pack = making_package.get(update.message.from.id)!;
                     making_package.set(update.message.from.id, {
@@ -568,10 +583,10 @@ app.post("/fhub", async (request, reply) => {
                 return;
             }
 
-            // ----- محتوا: getContent -----
+            
             if (has_step.step === "getContent" && has_step.type === "photo") {
                 if (update.message.media_group_id) {
-                    // آلبوم محتوا → buffer
+                    
                     const mgid = update.message.media_group_id;
                     const existing = media_group_buffer.get(mgid);
 
@@ -602,7 +617,7 @@ app.post("/fhub", async (request, reply) => {
             }
         }
 
-        // ================= DOCUMENT =================
+        
         else if (update.message.document) {
             if (isAdmin(update.message.from.id)) {
                 const has_step = await stepHandler.has(update.message.from.id);
@@ -618,7 +633,7 @@ app.post("/fhub", async (request, reply) => {
             }
         }
 
-        // ================= VIDEO =================
+        
         else if (update.message.video) {
             if (isAdmin(update.message.from.id)) {
                 const has_step = await stepHandler.has(update.message.from.id);
@@ -635,7 +650,7 @@ app.post("/fhub", async (request, reply) => {
         }
     }
 
-    // ================= CALLBACK QUERY =================
+    
     else if (update.callback_query) {
         if (!update.callback_query.data) return;
         if (!update.callback_query.message) return;
@@ -683,7 +698,7 @@ app.listen({ port: 6578, host: "127.0.0.1" }, async (err, addr) => {
     if (addr) console.error("[server]", addr);
 });
 
-// ================= Helpers =================
+
 async function isMember(userId: number, configuration: Configuration): Promise<{ links_to_join: string[] } | null> {
     const all_links = { links_to_join: [...configuration.force_to.map((vl) => vl.private_link)] };
     try {
@@ -753,3 +768,4 @@ function getKeyboard(): KeyboardButton[][] {
         ]
     ];
 }
+
